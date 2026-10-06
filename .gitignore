@@ -1,0 +1,8 @@
+.env
+.cache/
+__pycache__/
+.claude/
+
+# local media that does not belong in the repo
+day1-*.jpg
+lead-hunt-demo-no-music.mp4

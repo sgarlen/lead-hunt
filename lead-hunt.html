@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="google" content="notranslate">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead Hunt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f131a;
+  --panel: #151a23;
+  --panel-2: #1a202b;
+  --line: #252d3b;
+  --line-soft: #1e2531;
+  --ink: #ece8de;
+  --ink-2: #a9b0bd;
+  --ink-3: #6d7686;
+  --brass: #c9a45c;
+  --brass-dim: #8a7343;
+  --steel: #7fa6b8;
+  --slate: #56617a;
+  --good: #6fbf8e;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Figtree", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 14px/1.45 var(--body);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+}
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+.app {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 272px minmax(0, 1fr) 372px;
+  grid-template-rows: 64px minmax(0, 1fr) 236px;
+  grid-template-areas: "top top top" "left graph detail" "log table hist";
+  gap: 1px;
+  background: var(--line-soft);
+}
+.app > * { background: var(--bg); min-width: 0; min-height: 0; }
+
+/* top bar */
+.top { grid-area: top; display: flex; align-items: center; gap: 20px; padding: 0 22px; }
+.brand { font: 600 19px/1 var(--display); letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; }
+.brand i { width: 9px; height: 9px; border-radius: 50%; background: var(--brass); box-shadow: 0 0 0 4px rgba(201,164,92,.16); }
+.query { display: flex; align-items: center; gap: 8px; margin-left: 18px; }
+.field { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; }
+.field span { color: var(--ink-3); font-size: 13px; }
+.field select { background: transparent; border: 0; padding: 0 2px; cursor: pointer; font-weight: 500; }
+.field select option { background: var(--panel); }
+.btn { height: 38px; padding: 0 18px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-weight: 500; transition: background .15s, border-color .15s; }
+.btn:hover { background: var(--panel-2); border-color: #344054; }
+.btn.primary { background: var(--brass); border-color: var(--brass); color: #1a1508; font-weight: 600; }
+.btn.primary:hover { background: #d6b36c; }
+.btn.primary[disabled] { background: var(--panel-2); border-color: var(--line); color: var(--ink-2); cursor: default; }
+.speed { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; height: 38px; }
+.speed button { background: var(--panel); border: 0; padding: 0 12px; cursor: pointer; color: var(--ink-3); }
+.speed button[aria-pressed="true"] { background: var(--panel-2); color: var(--ink); }
+.field input { background: transparent; border: 0; outline: 0; width: 170px; padding: 0 2px; font-weight: 500; }
+.field:focus-within { border-color: var(--brass-dim); }
+.top .spacer { flex: 1; }
+.src { font-size: 12px; color: var(--ink-3); border: 1px solid var(--line); border-radius: 99px; padding: 5px 11px; }
+.src.live { color: var(--good); border-color: rgba(111,191,142,.3); }
+.table h2 { display: flex; justify-content: space-between; align-items: center; }
+.link { background: none; border: 0; padding: 0; color: var(--ink-2); font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.link:hover { color: var(--ink); }
+.lead-head a, .quote a { color: var(--brass); text-underline-offset: 3px; }
+.clock { color: var(--ink-2); font: 500 15px/1 var(--display); min-width: 62px; text-align: right; }
+
+/* left */
+.left { grid-area: left; padding: 20px 20px 16px; overflow: hidden; display: flex; flex-direction: column; gap: 22px; }
+h2 { font: 500 13px/1 var(--body); color: var(--ink-3); margin: 0 0 12px; }
+.stages { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.stages li { counter-increment: s; display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; padding: 7px 0; color: var(--ink-3); transition: color .3s; }
+.stages li::before { content: counter(s); width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 11px; transition: all .3s; }
+.stages li em { font-style: normal; font-size: 12px; color: var(--ink-3); }
+.stages li.active { color: var(--ink); }
+.stages li.active::before { border-color: var(--brass); color: var(--brass); box-shadow: 0 0 0 4px rgba(201,164,92,.12); }
+.stages li.done { color: var(--ink-2); }
+.stages li.done::before { content: "\2713"; background: rgba(111,191,142,.14); border-color: transparent; color: var(--good); }
+.counters { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+.counter b { display: block; font: 500 30px/1 var(--display); letter-spacing: -0.02em; }
+.counter span { font-size: 12px; color: var(--ink-3); }
+.counter.key b { color: var(--brass); }
+.chips { display: flex; flex-direction: column; gap: 4px; }
+.chip { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; cursor: pointer; color: var(--ink-2); text-align: left; }
+.chip:hover { background: var(--panel); }
+.chip[aria-pressed="true"] { background: var(--panel); border-color: var(--line); color: var(--ink); }
+.chip small { color: var(--ink-3); font-size: 12px; }
+
+/* graph */
+.graph { grid-area: graph; position: relative; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 46%, #141a24 0%, var(--bg) 68%); }
+.graph canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+.graph canvas.drag { cursor: grabbing; }
+.legend { position: absolute; left: 20px; bottom: 16px; display: flex; gap: 18px; font-size: 12px; color: var(--ink-3); pointer-events: none; }
+.legend span { display: flex; align-items: center; gap: 7px; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; }
+.legend i.dia { border-radius: 1px; transform: rotate(45deg); width: 8px; height: 8px; }
+.hint { position: absolute; right: 20px; bottom: 16px; font-size: 12px; color: var(--ink-3); pointer-events: none; }
+.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; pointer-events: none; transition: opacity .4s; }
+.empty p { font: 500 26px/1.2 var(--display); letter-spacing: -0.02em; margin: 0 0 8px; }
+.empty small { color: var(--ink-3); font-size: 14px; }
+.empty.hide { opacity: 0; }
+.tip { position: fixed; z-index: 5; pointer-events: none; background: #1d2430; border: 1px solid #323c4e; border-radius: 9px; padding: 9px 12px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.45); opacity: 0; transition: opacity .12s; max-width: 260px; }
+.tip.show { opacity: 1; }
+.tip b { display: block; font-weight: 600; }
+.tip span { color: var(--ink-2); font-size: 12px; }
+
+/* detail */
+.detail { grid-area: detail; padding: 22px; overflow: hidden; display: flex; flex-direction: column; }
+.detail .blank { margin: auto; text-align: center; color: var(--ink-3); max-width: 230px; }
+.detail .blank b { display: block; color: var(--ink-2); font: 500 17px/1.3 var(--display); margin-bottom: 6px; }
+.lead-head { display: flex; gap: 16px; align-items: center; }
+.ring { position: relative; width: 78px; height: 78px; flex: none; }
+.ring svg { transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 5; }
+.ring .bg { stroke: var(--line); }
+.ring .fg { stroke: var(--brass); stroke-linecap: round; transition: stroke-dashoffset .9s cubic-bezier(.2,.8,.2,1); }
+.ring b { position: absolute; inset: 0; display: grid; place-items: center; font: 500 25px/1 var(--display); }
+.lead-head h3 { font: 500 21px/1.15 var(--display); letter-spacing: -0.015em; margin: 0 0 5px; }
+.lead-head p { margin: 0; color: var(--ink-2); font-size: 13px; }
+.signals { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 6px; }
+.signals li { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2); padding-bottom: 6px; border-bottom: 1px solid var(--line-soft); }
+.signals li b { font-weight: 500; color: var(--ink); }
+.signals li.off { color: var(--ink-3); }
+.signals li.off b { color: var(--ink-3); }
+.quote { margin: 16px 0 0; padding: 12px 14px; background: var(--panel); border-radius: 10px; border-left: 2px solid var(--brass-dim); font-size: 13.5px; color: var(--ink); }
+.quote small { display: block; color: var(--ink-3); margin-top: 5px; font-size: 12px; }
+.draft { margin-top: 14px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.draft h2 { margin-bottom: 8px; }
+.draft p { margin: 0; flex: 1; min-height: 0; overflow: hidden; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); white-space: pre-wrap; }
+.draft p::after { content: ""; display: inline-block; width: 6px; height: 14px; background: var(--brass); margin-left: 2px; vertical-align: -2px; animation: blink 1s steps(2) infinite; }
+.draft p.done::after { display: none; }
+@keyframes blink { 50% { opacity: 0; } }
+.actions { display: flex; gap: 8px; margin-top: 14px; }
+.actions .btn { flex: 1; }
+
+/* bottom */
+.log { grid-area: log; padding: 16px 20px; display: flex; flex-direction: column; }
+.log ol { list-style: none; margin: 0; padding: 0; flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; font-size: 12.5px; }
+.log li { display: grid; grid-template-columns: 44px 1fr; gap: 8px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log li time { color: #4a5364; }
+.log li.hit { color: var(--ink); }
+.log li.hit::marker { color: var(--brass); }
+.table { grid-area: table; padding: 16px 22px; display: flex; flex-direction: column; }
+.rows { flex: 1; overflow: hidden; }
+.row { display: grid; grid-template-columns: 24px minmax(0, 1.6fr) minmax(0, 1fr) 96px 150px; gap: 14px; align-items: center; width: 100%; height: 27px; padding: 0 8px; margin: 0 -8px; border: 0; background: transparent; border-radius: 7px; cursor: pointer; text-align: left; font-size: 13px; }
+.row:hover, .row.sel { background: var(--panel); }
+.row > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .n { color: var(--ink-3); font-size: 12px; }
+.row .d, .row .r { color: var(--ink-2); }
+.row .s { display: flex; align-items: center; gap: 10px; }
+.row .s i { flex: 1; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.row .s i u { display: block; height: 100%; background: var(--brass); border-radius: 4px; }
+.row .s b { font-weight: 500; width: 24px; text-align: right; }
+.none { color: var(--ink-3); font-size: 13px; }
+.hist { grid-area: hist; padding: 16px 22px; display: flex; flex-direction: column; }
+.hist .plot { flex: 1; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--line); min-height: 0; }
+.hist .bar { flex: 1; background: var(--slate); border-radius: 4px 4px 0 0; min-height: 0; transition: height .35s cubic-bezier(.2,.8,.2,1); }
+.hist .bar.q { background: var(--brass); }
+.hist .bar:hover { filter: brightness(1.25); }
+.hist .axis { display: flex; justify-content: space-between; color: var(--ink-3); font-size: 11.5px; margin-top: 6px; }
+.hist .key { display: flex; gap: 14px; font-size: 12px; color: var(--ink-3); margin-top: 8px; }
+.hist .key span { display: flex; align-items: center; gap: 6px; }
+.hist .key i { width: 9px; height: 9px; border-radius: 2px; background: var(--slate); }
+.hist .key i.q { background: var(--brass); }
+
+/* recording autopilot */
+body.demo, body.demo * { cursor: none !important; }
+body.demo .app { pointer-events: none; }
+.cursor { position: fixed; left: 0; top: 0; z-index: 9; pointer-events: none; margin: -2px 0 0 -3px; filter: drop-shadow(0 3px 6px rgba(0,0,0,.5)); }
+.cursor i { position: absolute; left: -11px; top: -10px; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--brass); opacity: 0; }
+.cursor.down i { animation: ripple .5s ease-out; }
+@keyframes ripple { from { opacity: .9; transform: scale(.3); } to { opacity: 0; transform: scale(1.5); } }
+
+@media (max-width: 1180px) {
+  body { overflow: auto; }
+  .app { height: auto; grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: "top" "graph" "detail" "left" "table" "hist" "log"; }
+  .top { flex-wrap: wrap; padding: 12px 16px; height: auto; }
+  .graph { height: 70vh; }
+  .detail { min-height: 460px; }
+  .log, .table, .hist { height: 240px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><i></i>Lead Hunt</div>
+    <div class="query">
+      <label class="field"><span>City</span>
+        <select id="city">
+          <option value="austin">Austin, TX</option>
+          <option value="denver">Denver, CO</option>
+          <option value="nashville">Nashville, TN</option>
+        </select>
+        <input id="cityText" value="Austin, TX" aria-label="City" autocomplete="off" spellcheck="false" hidden>
+      </label>
+      <label class="field"><span>Looking for</span>
+        <select id="want">
+          <option value="">Any local service</option>
+        </select>
+      </label>
+      <button class="btn primary" id="run">Start hunt</button>
+      <div class="speed" role="group" aria-label="Speed">
+        <button data-speed="1" aria-pressed="true">1x</button>
+        <button data-speed="2" aria-pressed="false">2x</button>
+        <button data-speed="4" aria-pressed="false">4x</button>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="src" id="src" hidden></div>
+    <div class="clock" id="clock">00:00</div>
+  </header>
+
+  <aside class="left">
+    <section>
+      <h2>Progress</h2>
+      <ol class="stages" id="stages">
+        <li data-s="open">Open map listings<em></em></li>
+        <li data-s="scan">Scan neighborhoods<em></em></li>
+        <li data-s="site">Check for a website<em></em></li>
+        <li data-s="read">Read the reviews<em></em></li>
+        <li data-s="score">Score every lead<em></em></li>
+        <li data-s="draft">Draft first messages<em></em></li>
+      </ol>
+    </section>
+    <section>
+      <h2>So far</h2>
+      <div class="counters">
+        <div class="counter"><b id="c-scan">0</b><span>businesses scanned</span></div>
+        <div class="counter"><b id="c-nosite">0</b><span>without a website</span></div>
+        <div class="counter key"><b id="c-qual">0</b><span>qualified leads</span></div>
+        <div class="counter"><b id="c-draft">0</b><span>messages drafted</span></div>
+      </div>
+    </section>
+    <section>
+      <h2>Filter by service</h2>
+      <div class="chips" id="chips"></div>
+    </section>
+  </aside>
+
+  <main class="graph" id="graph">
+    <canvas id="cv" aria-label="Map of businesses, neighborhoods and the signals they share"></canvas>
+    <div class="empty" id="empty"><div><p>Pick a city and start the hunt</p><small>Every business found will appear here, linked to what makes it a lead.</small></div></div>
+    <div class="legend">
+      <span><i style="background:var(--brass)"></i>Qualified lead</span>
+      <span><i style="background:#d9d4c7"></i>No website</span>
+      <span><i style="background:var(--slate)"></i>Has a website</span>
+      <span><i class="dia" style="background:var(--steel)"></i>Signal</span>
+    </div>
+    <div class="hint">Click a dot to open it. Scroll to zoom, drag to move.</div>
+  </main>
+
+  <aside class="detail" id="detail">
+    <div class="blank"><b>No business selected</b>Click any dot on the map to see why it qualified and what to write.</div>
+  </aside>
+
+  <section class="log">
+    <h2>Activity</h2>
+    <ol id="log"></ol>
+  </section>
+  <section class="table">
+    <h2>Best leads right now <button class="link" id="csv" hidden>Download all leads</button></h2>
+    <div class="rows" id="rows"><div class="none">Leads show up here as they are scored.</div></div>
+  </section>
+  <section class="hist">
+    <h2>Lead scores</h2>
+    <div class="plot" id="plot"></div>
+    <div class="axis"><span>0</span><span>50</span><span>100</span></div>
+    <div class="key"><span><i class="q"></i>70 and up qualifies</span><span><i></i>Below 70</span></div>
+  </section>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+// Real businesses come from server.py. Without the server the page falls back to the generated sample below.
+const CITIES = {
+  austin: { label: 'Austin, TX', seed: 11, districts: ['South Congress', 'East Austin', 'Hyde Park', 'Zilker', 'Mueller', 'The Domain'] },
+  denver: { label: 'Denver, CO', seed: 23, districts: ['LoDo', 'RiNo', 'Capitol Hill', 'Cherry Creek', 'Highlands', 'Baker'] },
+  nashville: { label: 'Nashville, TN', seed: 37, districts: ['East Nashville', 'The Gulch', 'Germantown', '12 South', 'Sylvan Park', 'Midtown'] }
+};
+const NICHES = {
+  'Barbershops': { names: ['Barber Co.', 'Barbershop', 'Cuts'], thing: 'a fade', ask: 'if they take walk-ins' },
+  'Auto repair': { names: ['Auto Repair', 'Garage', 'Motor Works'], thing: 'a brake job', ask: 'what an oil change costs' },
+  'Dentists': { names: ['Family Dental', 'Dental Studio'], thing: 'a cleaning', ask: 'which insurance they take' },
+  'Landscaping': { names: ['Lawn & Landscape', 'Landscaping'], thing: 'a yard cleanup', ask: 'if they do one-time jobs' },
+  'Nail salons': { names: ['Nail Bar', 'Nail Studio'], thing: 'a gel set', ask: 'what their prices are' }
+};
+const FIRST = ['Halloway', 'Brindle', 'Ostrander', 'Calder', 'Wexford', 'Tindal', 'Quillon', 'Sablewood', 'Kestrel', 'Vantry', 'Orrin', 'Fenwick', 'Larkmoor', 'Bexley', 'Thistle', 'Corvane', 'Ridgeback', 'Averill', 'Dunmore', 'Marrow & Pine', 'Dustline', 'Solvang', 'Pruett', 'Emberly', 'Northgate', 'Juniper Row', 'Copper Wren', 'Idlewild', 'Tamsin', 'Rookfield'];
+const SIGNALS = {
+  nosite: { label: 'No website listed', pts: 40 },
+  social: { label: 'Only a social page', pts: 25 },
+  dead: { label: 'Website does not load', pts: 32 },
+  phone: { label: 'Phone number listed', pts: 12 },
+  nohours: { label: 'No opening hours listed', pts: 6 },
+  reviews: { label: '100+ reviews', pts: 10 },
+  rating: { label: 'Rated 4.5 or higher', pts: 6 },
+  asks: { label: 'Reviews mention calling or hours', pts: 8 },
+  replies: { label: 'Owner replies to reviews', pts: 6 }
+};
+const GAPS = ['nosite', 'social', 'dead'], BASE = 20, QUALIFY = 70;
+function grade(b) {
+  b.score = Math.min(99, BASE + b.sig.reduce((s, k) => s + (SIGNALS[k] ? SIGNALS[k].pts : 0), 0));
+  b.lead = GAPS.some(k => b.sig.includes(k));
+  b.qualified = b.lead && b.score >= QUALIFY;
+  return b;
+}
+
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function buildCity(key) {
+  const city = CITIES[key], r = rng(city.seed), pick = a => a[Math.floor(r() * a.length)];
+  const used = new Set(), out = [];
+  city.districts.forEach(district => {
+    const count = 10 + Math.floor(r() * 4);
+    for (let i = 0; i < count; i++) {
+      const niche = pick(Object.keys(NICHES));
+      let name; do { name = pick(FIRST) + ' ' + pick(NICHES[niche].names); } while (used.has(name));
+      used.add(name);
+      const reviews = Math.floor(18 + r() * r() * 420), rating = +(3.9 + r() * 1.05).toFixed(1);
+      const sig = [];
+      const web = r();
+      if (web < 0.34) sig.push('nosite'); else if (web < 0.5) sig.push('social');
+      if (r() < 0.6) sig.push('phone');
+      if (r() < 0.4) sig.push('nohours');
+      if (reviews >= 100) sig.push('reviews');
+      if (rating >= 4.5) sig.push('rating');
+      if (r() < 0.38) sig.push('asks');
+      if (r() < 0.3) sig.push('replies');
+      const b = grade({ name, niche, district, reviews, rating, sig, address: '', phone: '', url: '' });
+      b.quote = sampleQuote(b);
+      out.push(b);
+    }
+  });
+  return { label: city.label, source: 'sample', found: out.length, notes: [], districts: city.districts.map(name => ({ name, businesses: out.filter(b => b.district === name) })) };
+}
+function sampleQuote(b) {
+  const n = NICHES[b.niche];
+  if (b.sig.includes('asks')) return 'Great place for ' + n.thing + ', but I had to call just to find out ' + n.ask + '.';
+  if (b.sig.includes('phone')) return 'Best ' + n.thing + ' I have had in years. Wish I could book without calling three times.';
+  return 'Came here on a friend\'s word. Tried to look them up first and found almost nothing online.';
+}
+function messageFor(b) {
+  const gap = b.sig.includes('dead') ? 'the website listed for you does not load' : b.sig.includes('social') ? 'the only link I could find is a social page' : 'I could not find a website for you';
+  if (b.quote) return 'Hi, I was reading the reviews for ' + b.name + (b.reviews ? ' - ' + b.reviews + ' of them at ' + b.rating + ' stars' : '') + '.\n\nOne stood out: "' + b.quote + '"\n\nRight now ' + gap + ', so people can\'t check that before they call. I put together a one-page demo for you, built from your own reviews.\n\nWant me to send the link?';
+  return 'Hi, I was looking for ' + b.niche.toLowerCase() + ' in ' + b.district + ' and found ' + b.name + ' on the map.\n\n' + gap[0].toUpperCase() + gap.slice(1) + ', so there is nowhere to check your hours, prices or services before calling.\n\nI put together a one-page demo site for you with all of that in one place.\n\nWant me to send the link?';
+}
+const ratingLine = b => b.rating ? b.rating + ' stars, ' + (b.reviews || 0) + ' reviews' : (b.address || 'No address listed');
+
+/* ---------- graph state ---------- */
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let W = 0, H = 0, DPR = 1;
+let nodes = [], links = [], sparks = [], byId = new Map();
+let view = { x: 0, y: 0, k: 1 }, goal = { x: 0, y: 0, k: 1 }, baseK = 1;
+let selected = null, hovered = null, filter = '', runId = 0, speed = 1, running = false, finished = false;
+let startedAt = 0, clockTimer = null, typer = null;
+let live = false, loading = false, nicheNames = Object.keys(NICHES), shownSignals = Object.keys(SIGNALS);
+
+function resize() {
+  const b = cv.getBoundingClientRect();
+  DPR = Math.min(2, devicePixelRatio || 1); W = b.width; H = b.height;
+  cv.width = W * DPR; cv.height = H * DPR;
+  baseK = Math.min(W, H) / 2 / 560;
+  if (!running && !selected) goal = { x: 0, y: 0, k: baseK };
+}
+addEventListener('resize', resize);
+
+function addNode(n) { n.vx = 0; n.vy = 0; n.born = performance.now(); nodes.push(n); byId.set(n.id, n); return n; }
+function addLink(a, b, kind) { const l = { a: byId.get(a), b: byId.get(b), kind }; links.push(l); sparks.push({ l, t: 0, fast: true }); return l; }
+function neighbors(n) { const s = new Set([n]); links.forEach(l => { if (l.a === n) s.add(l.b); if (l.b === n) s.add(l.a); }); return s; }
+
+const REST = { hub: 250, biz: 62, sig: 210 }, PULL = { hub: 0.03, biz: 0.045, sig: 0.0035 };
+function physics() {
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nodes[i];
+    for (let j = i + 1; j < nodes.length; j++) {
+      const b = nodes[j]; let dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+      if (d2 > 26000) continue; if (d2 < 1) { dx = Math.random() - .5; dy = Math.random() - .5; d2 = 1; }
+      const d = Math.sqrt(d2), f = Math.min(2.2, (a.type === 'biz' && b.type === 'biz' ? 260 : 900) / d2);
+      const fx = dx / d * f, fy = dy / d * f; a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+    }
+  }
+  links.forEach(l => {
+    const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, d = Math.hypot(dx, dy) || 1, f = (d - REST[l.kind]) * PULL[l.kind];
+    const fx = dx / d * f, fy = dy / d * f;
+    l.a.vx += fx; l.a.vy += fy; l.b.vx -= fx; l.b.vy -= fy;
+  });
+  nodes.forEach(n => {
+    if (n.ax !== undefined) { n.vx += (n.ax - n.x) * 0.04; n.vy += (n.ay - n.y) * 0.04; }
+    if (n === dragNode) { n.vx = 0; n.vy = 0; return; }
+    n.vx *= 0.8; n.vy *= 0.8; n.x += n.vx; n.y += n.vy;
+  });
+}
+
+const toScreen = n => [W / 2 + (n.x - view.x) * view.k, H / 2 + (n.y - view.y) * view.k];
+const toWorld = (sx, sy) => [(sx - W / 2) / view.k + view.x, (sy - H / 2) / view.k + view.y];
+function radius(n) { return n.type === 'city' ? 13 : n.type === 'district' ? 8 : n.type === 'signal' ? 6 : 3.4 + (n.checked ? n.data.score / 100 * 5.2 : 0); }
+function color(n) {
+  if (n.type === 'signal') return '#7fa6b8';
+  if (n.type !== 'biz') return '#ece8de';
+  if (!n.checked) return '#3c4557';
+  return n.data.qualified ? '#c9a45c' : n.data.lead ? '#d9d4c7' : '#56617a';
+}
+function dimmed(n, focus) {
+  if (focus && !focus.has(n)) return true;
+  return filter && n.type === 'biz' && n.data.niche !== filter;
+}
+
+function draw(now) {
+  view.x += (goal.x - view.x) * 0.07; view.y += (goal.y - view.y) * 0.07; view.k += (goal.k - view.k) * 0.07;
+  physics();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
+  const active = selected || hovered, focus = active ? neighbors(active) : null;
+
+  links.forEach(l => {
+    const [x1, y1] = toScreen(l.a), [x2, y2] = toScreen(l.b);
+    const on = focus && (l.a === active || l.b === active);
+    const off = dimmed(l.a, focus) || dimmed(l.b, focus);
+    ctx.strokeStyle = on ? 'rgba(201,164,92,.75)' : l.kind === 'sig' ? 'rgba(127,166,184,' + (off ? .018 : .075) + ')' : 'rgba(236,232,222,' + (off ? .04 : .16) + ')';
+    ctx.lineWidth = on ? 1.4 : 1;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  });
+
+  sparks = sparks.filter(s => s.t < 1);
+  sparks.forEach(s => {
+    s.t += (s.fast ? 0.035 : 0.012) * speed;
+    const x = s.l.a.x + (s.l.b.x - s.l.a.x) * s.t, y = s.l.a.y + (s.l.b.y - s.l.a.y) * s.t;
+    const [sx, sy] = toScreen({ x, y });
+    ctx.fillStyle = 'rgba(201,164,92,' + (1 - s.t) * .9 + ')';
+    ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, 6.3); ctx.fill();
+  });
+
+  nodes.forEach(n => {
+    const [x, y] = toScreen(n), age = Math.max(0, Math.min(1, (now - n.born) / 320)), grow = 1 - Math.pow(1 - age, 3);
+    const r = radius(n) * Math.max(.75, Math.min(1.5, view.k / baseK)) * grow;
+    ctx.globalAlpha = dimmed(n, focus) ? .16 : 1;
+    if (n.type === 'city' || n.type === 'district') {
+      ctx.fillStyle = '#0f131a'; ctx.strokeStyle = n.type === 'city' ? '#ece8de' : '#8d96a6'; ctx.lineWidth = n.type === 'city' ? 2 : 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill(); ctx.stroke();
+      if (n.type === 'city') { ctx.fillStyle = '#ece8de'; ctx.beginPath(); ctx.arc(x, y, r * .36, 0, 6.3); ctx.fill(); }
+      if (n.type === 'city' && loading) {
+        // waiting on the map service: two rings keep the screen alive
+        for (const shift of [0, .5]) { const p = (now / 1800 + shift) % 1; ctx.strokeStyle = 'rgba(201,164,92,' + (1 - p) * .55 + ')'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, r + p * 150, 0, 6.3); ctx.stroke(); }
+      }
+    } else if (n.type === 'signal') {
+      ctx.fillStyle = color(n); ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-r * .8, -r * .8, r * 1.6, r * 1.6); ctx.restore();
+    } else {
+      if (n.checked && n.data.qualified) { ctx.fillStyle = 'rgba(201,164,92,.13)'; ctx.beginPath(); ctx.arc(x, y, r + 5, 0, 6.3); ctx.fill(); }
+      ctx.fillStyle = color(n); ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill();
+      ctx.strokeStyle = '#0f131a'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    if (n === selected) { ctx.strokeStyle = '#c9a45c'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, r + 7 + Math.sin(now / 300) * 1.2, 0, 6.3); ctx.stroke(); }
+
+    const showLabel = n.type !== 'biz' || n === selected || n === hovered || (finished && n.top);
+    if (showLabel && grow > .6) {
+      const strong = n.type === 'city' || n === selected;
+      ctx.font = (strong ? '600 14px ' : '500 12px ') + 'Figtree, system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      const label = n.label, ty = y + r + 7, tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(15,19,26,.78)'; ctx.fillRect(x - tw / 2 - 4, ty - 2, tw + 8, 18);
+      ctx.fillStyle = n.type === 'signal' ? '#7fa6b8' : n.type === 'biz' ? '#ece8de' : n.type === 'city' ? '#ece8de' : '#a9b0bd';
+      ctx.fillText(label, x, ty);
+    }
+    ctx.globalAlpha = 1;
+  });
+  requestAnimationFrame(draw);
+}
+
+/* ---------- pointer ---------- */
+let dragNode = null, panning = null, moved = false;
+function hit(ex, ey) {
+  const b = cv.getBoundingClientRect(), mx = ex - b.left, my = ey - b.top; let best = null, bd = 16;
+  nodes.forEach(n => { const [x, y] = toScreen(n), d = Math.hypot(x - mx, y - my) - radius(n); if (d < bd) { bd = d; best = n; } });
+  return best;
+}
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId); moved = false;
+  dragNode = hit(e.clientX, e.clientY);
+  if (!dragNode) panning = { x: e.clientX, y: e.clientY, vx: goal.x, vy: goal.y };
+  cv.classList.add('drag');
+});
+cv.addEventListener('pointermove', e => {
+  if (dragNode) {
+    moved = true; const b = cv.getBoundingClientRect(); const [wx, wy] = toWorld(e.clientX - b.left, e.clientY - b.top);
+    dragNode.x = wx; dragNode.y = wy; if (dragNode.ax !== undefined) { dragNode.ax = wx; dragNode.ay = wy; }
+  } else if (panning) {
+    moved = true; goal.x = view.x = panning.vx - (e.clientX - panning.x) / view.k; goal.y = view.y = panning.vy - (e.clientY - panning.y) / view.k;
+  } else {
+    hovered = hit(e.clientX, e.clientY); cv.style.cursor = hovered ? 'pointer' : '';
+    showTip(hovered && hovered.type === 'biz' && hovered.checked ? hovered : null, e.clientX, e.clientY);
+  }
+});
+cv.addEventListener('pointerup', e => {
+  if (dragNode && !moved && dragNode.type === 'biz' && dragNode.checked) select(dragNode, true);
+  else if (!dragNode && !moved) select(null);
+  dragNode = null; panning = null; cv.classList.remove('drag');
+});
+cv.addEventListener('pointerleave', () => { hovered = null; showTip(null); });
+cv.addEventListener('wheel', e => { e.preventDefault(); goal.k = Math.max(baseK * .6, Math.min(baseK * 4, goal.k * (e.deltaY < 0 ? 1.14 : 0.88))); }, { passive: false });
+
+const tip = document.getElementById('tip');
+function showTip(n, x, y, html) {
+  if (!n && !html) { tip.classList.remove('show'); return; }
+  tip.innerHTML = html || '<b>' + n.data.name + '</b><span>' + n.data.niche + ' in ' + n.data.district + '<br>' + ratingLine(n.data) + '. Score ' + n.data.score + '</span>';
+  tip.style.left = Math.min(innerWidth - 280, x + 16) + 'px'; tip.style.top = (y + 16) + 'px'; tip.classList.add('show');
+}
+
+/* ---------- panels ---------- */
+const $ = id => document.getElementById(id);
+function setStage(key, state, note) {
+  const li = document.querySelector('.stages [data-s="' + key + '"]'); li.className = state || '';
+  if (note !== undefined) li.querySelector('em').textContent = note;
+}
+function log(text, hitLine) {
+  const ol = $('log'), li = document.createElement('li'); if (hitLine) li.className = 'hit';
+  li.innerHTML = '<time>' + elapsedLabel() + '</time><span></span>'; li.lastChild.textContent = text;
+  ol.appendChild(li); while (ol.children.length > 9) ol.firstChild.remove();
+}
+function elapsedLabel() { const s = Math.floor((performance.now() - startedAt) / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+function bump(id, v) { $(id).textContent = v; }
+
+function renderChips(all) {
+  const box = $('chips'); box.innerHTML = '';
+  const make = (label, value, count) => {
+    const b = document.createElement('button'); b.className = 'chip'; b.setAttribute('aria-pressed', filter === value);
+    b.innerHTML = '<span></span><small>' + count + '</small>'; b.firstChild.textContent = label;
+    b.onclick = () => { filter = value; if (!live) $('want').value = value; renderChips(all); renderRows(); };
+    box.appendChild(b);
+  };
+  const found = nodes.filter(n => n.type === 'biz');
+  make('All services', '', found.length);
+  nicheNames.forEach(k => make(k, k, found.filter(n => n.data.niche === k).length));
+}
+function ranked() { return nodes.filter(n => n.type === 'biz' && n.checked && n.data.lead && (!filter || n.data.niche === filter)).sort((a, b) => b.data.score - a.data.score); }
+function renderRows() {
+  const list = ranked().slice(0, 6), box = $('rows');
+  if (!list.length) { box.innerHTML = '<div class="none">' + (nodes.length ? 'No leads match this filter yet.' : 'Leads show up here as they are scored.') + '</div>'; return; }
+  box.innerHTML = '';
+  list.forEach((n, i) => {
+    const b = n.data, row = document.createElement('button'); row.className = 'row' + (n === selected ? ' sel' : '');
+    row.innerHTML = '<span class="n">' + (i + 1) + '</span><span></span><span class="d"></span><span class="r"></span><span class="s"><i><u style="width:' + b.score + '%"></u></i><b>' + b.score + '</b></span>';
+    row.children[1].textContent = b.name; row.children[2].textContent = b.district;
+    row.children[3].textContent = b.rating ? b.rating + ' / ' + (b.reviews || 0) : (b.phone || 'no phone');
+    row.onclick = () => select(n, true); box.appendChild(row);
+  });
+}
+function renderHist() {
+  const bins = new Array(10).fill(0); nodes.forEach(n => { if (n.type === 'biz' && n.checked) bins[Math.min(9, Math.floor(n.data.score / 10))]++; });
+  const max = Math.max(1, ...bins), plot = $('plot');
+  if (plot.children.length !== 10) { plot.innerHTML = ''; bins.forEach((_, i) => { const d = document.createElement('div'); d.className = 'bar' + (i >= 7 ? ' q' : ''); d.style.height = '0%'; plot.appendChild(d); }); }
+  bins.forEach((c, i) => {
+    const d = plot.children[i]; d.style.height = (c / max * 100) + '%';
+    d.onmousemove = e => showTip(null, e.clientX, e.clientY - 60, '<b>Score ' + i * 10 + ' to ' + (i * 10 + 9) + '</b><span>' + c + ' businesses</span>');
+    d.onmouseleave = () => showTip(null);
+  });
+}
+
+function select(n, focus) {
+  selected = n; clearInterval(typer); renderRows();
+  const box = $('detail');
+  if (!n) { box.innerHTML = '<div class="blank"><b>No business selected</b>Click any dot on the map to see why it qualified and what to write.</div>'; if (!running) goal = { x: 0, y: 0, k: baseK }; return; }
+  if (focus) goal = { x: n.x, y: n.y, k: baseK * 1.9 };
+  const b = n.data, C = 2 * Math.PI * 34;
+  box.innerHTML = '<div class="lead-head"><div class="ring"><svg width="78" height="78" viewBox="0 0 78 78"><circle class="bg" cx="39" cy="39" r="34"/><circle class="fg" cx="39" cy="39" r="34" stroke-dasharray="' + C + '" stroke-dashoffset="' + C + '"/></svg><b>0</b></div><div><h3></h3><p></p></div></div>'
+    + '<ul class="signals"></ul>' + (b.lead ? '<div class="quote"><span></span><small>From a customer review</small></div><div class="draft"><h2>First message</h2><p></p></div><div class="actions"><button class="btn" id="copy">Copy message</button><button class="btn" id="next">Next lead</button></div>' : '<div class="quote"><span>This one already has a working website, so it is not a lead.</span></div><div class="actions" style="margin-top:auto"><button class="btn" id="next">Next lead</button></div>');
+  box.querySelector('h3').textContent = b.name;
+  const sub = box.querySelector('.lead-head p');
+  sub.textContent = b.niche + ' in ' + b.district + '. ' + ratingLine(b) + (b.phone ? '. ' + b.phone : '') + ' ';
+  if (b.url) { const a = document.createElement('a'); a.href = b.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Open listing'; sub.appendChild(a); }
+  const ul = box.querySelector('.signals');
+  shownSignals.forEach(k => { const li = document.createElement('li'), on = b.sig.includes(k); if (!on) li.className = 'off'; li.innerHTML = '<span></span><b>' + (on ? '+' + SIGNALS[k].pts : 'no') + '</b>'; li.firstChild.textContent = SIGNALS[k].label; ul.appendChild(li); });
+  requestAnimationFrame(() => { box.querySelector('.fg').style.strokeDashoffset = C * (1 - b.score / 100); });
+  const num = box.querySelector('.ring b'), t0 = performance.now();
+  (function tick(t) { const p = Math.min(1, (t - t0) / 800); num.textContent = Math.round(b.score * (1 - Math.pow(1 - p, 3))); if (p < 1 && selected === n) requestAnimationFrame(tick); })(t0);
+  $('next').onclick = () => { const list = ranked(), i = list.indexOf(n); if (list.length) select(list[(i + 1) % list.length], true); };
+  if (!b.lead) return;
+  if (b.quote) box.querySelector('.quote span').textContent = '"' + b.quote + '"';
+  else { box.querySelector('.quote span').textContent = 'Check this one by hand before you write. The map listing shows no working website, but map data can be out of date.'; box.querySelector('.quote small').textContent = 'No reviews loaded for this business'; }
+  const p = box.querySelector('.draft p'), msg = messageFor(b); let i = 0;
+  if (reduce) { p.textContent = msg; p.classList.add('done'); } else typer = setInterval(() => { i += 2; p.textContent = msg.slice(0, i); if (i >= msg.length) { clearInterval(typer); p.classList.add('done'); } }, 14);
+  $('copy').onclick = e => { navigator.clipboard && navigator.clipboard.writeText(msg); e.target.textContent = 'Copied'; setTimeout(() => { e.target.textContent = 'Copy message'; }, 1400); };
+}
+
+/* ---------- the hunt ---------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms / speed));
+async function hunt() {
+  const id = ++runId, typed = live ? $('cityText').value.trim() : CITIES[$('city').value].label;
+  if (!typed) { $('cityText').focus(); return; }
+  nodes = []; links = []; sparks = []; byId = new Map(); selected = null; hovered = null; finished = false; running = true;
+  select(null); $('log').innerHTML = ''; $('empty').classList.add('hide');
+  ['open', 'scan', 'site', 'read', 'score', 'draft'].forEach(s => setStage(s, '', ''));
+  ['c-scan', 'c-nosite', 'c-qual', 'c-draft'].forEach(c => bump(c, 0));
+  renderChips(); renderRows(); renderHist();
+  const btn = $('run'); btn.disabled = true; btn.textContent = 'Hunting';
+  startedAt = performance.now(); clearInterval(clockTimer); clockTimer = setInterval(() => { $('clock').textContent = elapsedLabel(); }, 250);
+  goal = { x: 0, y: 0, k: baseK * 1.5 };
+
+  setStage('open', 'active'); log('Opening map listings for ' + typed);
+  const cityNode = addNode({ id: 'city', type: 'city', label: typed, x: 0, y: 0, ax: 0, ay: 0 });
+  let city;
+  if (live) {
+    loading = true;
+    const want = $('want').value, nudge = setInterval(() => log('Still collecting listings. The free map service takes about half a minute'), 8000);
+    try {
+      const res = await fetch('/api/hunt?city=' + encodeURIComponent(typed) + (want ? '&niche=' + encodeURIComponent(want) : ''));
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'The search failed');
+      body.districts.forEach(d => d.businesses.forEach(grade));
+      city = { label: body.city.label, source: body.source, found: body.found, notes: body.notes, districts: body.districts };
+    } catch (err) { if (id === runId) fail(err.message); return; } finally { clearInterval(nudge); loading = false; }
+    if (id !== runId) return;
+  } else { city = buildCity($('city').value); await sleep(700); if (id !== runId) return; }
+  const data = city.districts.flatMap(d => d.businesses);
+  cityNode.label = city.label;
+  nicheNames = [...new Set(data.map(b => b.niche))];
+  shownSignals = Object.keys(SIGNALS).filter(k => GAPS.includes(k) || data.some(b => b.sig.includes(k)));
+  if (!nicheNames.includes(filter)) filter = '';
+  if (live) log(city.found + ' businesses on the map, checking the ' + data.length + ' closest to each area');
+  city.notes.forEach(n => log(n, true));
+  setStage('open', 'done'); setStage('scan', 'active'); setStage('site', 'active'); setStage('read', 'active');
+
+  const sigIds = Object.keys(SIGNALS); let scanned = 0, nosite = 0, qual = 0;
+  for (let d = 0; d < city.districts.length; d++) {
+    const name = city.districts[d].name, a = d / city.districts.length * Math.PI * 2 - Math.PI / 2, dx = Math.cos(a) * 255, dy = Math.sin(a) * 255;
+    addNode({ id: 'd' + d, type: 'district', label: name, x: dx * .3, y: dy * .3, ax: dx, ay: dy }); addLink('city', 'd' + d, 'hub');
+    const here = city.districts[d].businesses;
+    log(name + ': ' + here.length + ' listings found'); setStage('scan', 'active', (d + 1) + ' of ' + city.districts.length);
+    goal = { x: dx * .62, y: dy * .62, k: baseK * 1.55 };
+    await sleep(520); if (id !== runId) return;
+    for (const b of here) {
+      const n = addNode({ id: 'b' + scanned, type: 'biz', label: b.name, data: b, checked: false, x: dx + (Math.random() - .5) * 30, y: dy + (Math.random() - .5) * 30 });
+      addLink('d' + d, n.id, 'biz'); scanned++; bump('c-scan', scanned);
+      await sleep(95); if (id !== runId) return;
+      n.checked = true; n.born = performance.now() - 200;
+      b.sig.forEach(k => {
+        if (!byId.has('s-' + k)) { const sa = sigIds.indexOf(k) / sigIds.length * Math.PI * 2 - Math.PI / 3; addNode({ id: 's-' + k, type: 'signal', label: SIGNALS[k].label, x: Math.cos(sa) * 300, y: Math.sin(sa) * 300, ax: Math.cos(sa) * 480, ay: Math.sin(sa) * 480 }); }
+        addLink(n.id, 's-' + k, 'sig');
+      });
+      if (b.lead) { nosite++; bump('c-nosite', nosite); }
+      if (b.qualified) { qual++; bump('c-qual', qual); log(b.name + ': ' + SIGNALS[GAPS.find(k => b.sig.includes(k))].label.toLowerCase() + (b.reviews ? ', ' + b.reviews + ' reviews' : '') + ', score ' + b.score, true); }
+      setStage('site', 'active', scanned + ' checked'); setStage('read', 'active', scanned + ' read');
+      renderChips(); renderRows(); renderHist();
+      await sleep(70); if (id !== runId) return;
+    }
+  }
+  setStage('scan', 'done'); setStage('site', 'done'); setStage('read', 'done');
+  goal = { x: 0, y: 0, k: baseK };
+  setStage('score', 'active'); log('Ranking ' + nosite + ' businesses without a proper website');
+  await sleep(900); if (id !== runId) return;
+  ranked().slice(0, 5).forEach(n => { n.top = true; });
+  setStage('score', 'done', qual + ' qualified'); setStage('draft', 'active');
+  for (let i = 1; i <= qual; i++) { bump('c-draft', i); setStage('draft', 'active', i + ' of ' + qual); await sleep(60); if (id !== runId) return; }
+  setStage('draft', 'done', qual + ' ready'); log('Done. ' + qual + ' qualified leads, each with a first message', true);
+  clearInterval(clockTimer); running = false; finished = true; btn.disabled = false; btn.textContent = 'Run again'; $('csv').hidden = false;
+  await sleep(500); if (id !== runId) return;
+  const best = ranked()[0]; if (best) select(best, true);
+}
+
+function fail(message) {
+  clearInterval(clockTimer); running = false; nodes = []; links = []; sparks = []; byId = new Map();
+  const btn = $('run'); btn.disabled = false; btn.textContent = 'Start hunt'; setStage('open', '');
+  const box = $('empty'); box.querySelector('p').textContent = 'The search did not finish'; box.querySelector('small').textContent = message; box.classList.remove('hide');
+  log(message, true);
+}
+function downloadLeads() {
+  const cell = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const head = ['name', 'service', 'area', 'address', 'phone', 'website', 'score', 'signals', 'rating', 'reviews', 'listing', 'first message'];
+  const lines = ranked().map(n => { const b = n.data; return [b.name, b.niche, b.district, b.address, b.phone, b.website, b.score, b.sig.map(k => SIGNALS[k].label).join('; '), b.rating, b.reviews, b.url, messageFor(b)].map(cell).join(','); });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + head.join(',') + '\n' + lines.join('\n')], { type: 'text/csv' }));
+  a.download = 'leads.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+async function boot() {
+  let niches = Object.keys(NICHES), google = false;
+  try { const res = await fetch('/api/config'); if (res.ok) { const cfg = await res.json(); live = true; niches = cfg.niches; google = cfg.google; } } catch (err) { /* opened as a plain file: sample mode */ }
+  niches.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = k; $('want').appendChild(o); });
+  $('city').hidden = live; $('cityText').hidden = !live;
+  const src = $('src'); src.hidden = demoPace !== null;
+  src.textContent = live ? 'Live data from ' + (google ? 'OpenStreetMap and Google Places' : 'OpenStreetMap') : 'Sample data. Run server.py for real businesses';
+  src.classList.toggle('live', live);
+}
+
+setInterval(() => { if (finished && !reduce && links.length) { const pool = links.filter(l => l.kind === 'sig'); sparks.push({ l: pool[Math.floor(Math.random() * pool.length)], t: 0 }); } }, 220);
+
+const demoPace = new URLSearchParams(location.search).get('demo');
+$('want').onchange = e => { if (!live) { filter = e.target.value; renderChips(); renderRows(); } };
+$('run').onclick = hunt;
+$('csv').onclick = downloadLeads;
+$('cityText').onkeydown = e => { if (e.key === 'Enter' && !running) hunt(); };
+document.querySelectorAll('.speed button').forEach(b => b.onclick = () => { speed = +b.dataset.speed; document.querySelectorAll('.speed button').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+resize(); view = { ...goal }; renderChips(); renderHist(); requestAnimationFrame(draw);
+
+/* ---------- autopilot for screen recording: open the file with ?demo=1.6 (the number is the speed) ---------- */
+async function autopilot(pace) {
+  document.body.classList.add('demo');
+  const cur = document.createElement('div'); cur.className = 'cursor';
+  cur.innerHTML = '<svg width="22" height="22" viewBox="0 0 22 22"><path d="M3 2l15 7.5-6.4 2.2L9.3 18z" fill="#fff" stroke="#0f131a" stroke-width="1.4" stroke-linejoin="round"/></svg><i></i>';
+  document.body.appendChild(cur);
+  let cx = innerWidth * .62, cy = innerHeight * .58;
+  const place = () => { cur.style.transform = 'translate(' + cx + 'px,' + cy + 'px)'; }; place();
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const pointOf = t => { if (t.nodeType) { const r = t.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; } const b = cv.getBoundingClientRect(), p = toScreen(t); return [b.left + p[0], b.top + p[1]]; };
+  const glide = (t, ms) => new Promise(res => {
+    const x0 = cx, y0 = cy, t0 = performance.now();
+    (function step(now) { const p = Math.min(1, (now - t0) / ms), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2, to = pointOf(t); cx = x0 + (to[0] - x0) * e; cy = y0 + (to[1] - y0) * e; place(); p < 1 ? requestAnimationFrame(step) : res(); })(t0);
+  });
+  const press = async () => { cur.classList.remove('down'); void cur.offsetWidth; cur.classList.add('down'); await wait(160); };
+  const clickEl = async (el, ms) => { if (!el) return; await glide(el, ms); await press(); el.click(); };
+  const stayOn = async (n, ms, tipOn) => { const until = performance.now() + ms; while (performance.now() < until) { const p = pointOf(n); cx = p[0]; cy = p[1]; place(); if (tipOn) showTip(n, cx, cy); await wait(16); } };
+  const hoverNode = async (n, hold) => { await glide(n, 620); hovered = n; await stayOn(n, hold, true); hovered = null; showTip(null); };
+  const clickNode = async n => { await glide(n, 700); await press(); select(n, true); await stayOn(n, 500); };
+
+  speed = pace; document.querySelectorAll('.speed button').forEach(b => b.setAttribute('aria-pressed', false));
+  await wait(3200);
+  await clickEl($('run'), 950);
+  await wait(1500);
+  let last = null;
+  while (running) {
+    const pool = nodes.filter(n => n.type === 'biz' && n.checked && n.data.qualified), n = pool[pool.length - 1];
+    if (n && n !== last) { last = n; await hoverNode(n, 850); } else await wait(250);
+    await wait(700);
+  }
+  await wait(3600);
+  await clickEl($('next'), 800); await wait(2600);
+  await clickEl($('next'), 450); await wait(2400);
+  await clickEl(document.querySelectorAll('.row')[4], 900); await wait(2400);
+  await clickEl($('chips').children[1], 900); await wait(1500);
+  const pick = ranked()[0]; if (pick) { await clickNode(pick); await wait(2600); }
+  await clickEl($('chips').children[0], 800); await wait(900);
+  await glide($('graph'), 800); await press(); select(null);
+}
+boot().then(() => { if (demoPace !== null) autopilot(+demoPace || 1.6); });
+</script>
+</body>
+</html>
