@@ -1,0 +1,163 @@
+{
+  "id": "night08leads",
+  "name": "08 Lead form webhook (replaces Zapier)",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "night08leads-t0",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Run now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "night08leads-t1",
+      "position": [
+        0,
+        180
+      ]
+    },
+    {
+      "name": "Lead webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "night08leads",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "night08leads-t2",
+      "position": [
+        0,
+        360
+      ]
+    },
+    {
+      "name": "Validate lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const src = $input.first().json;\n// Schedule and manual runs have no body, so they send a test lead.\nconst lead = src.body ?? { name: 'Test Lead', email: 'test@example.com', note: 'self-test' };\nconst email = String(lead.email ?? '').trim().toLowerCase();\nif (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) throw new Error('Invalid email: ' + email);\nconst row = { receivedAt: new Date().toISOString(), name: String(lead.name ?? '').trim(), email, note: String(lead.note ?? '').trim(), test: !src.body };\nreturn [{ json: { ...row, text: JSON.stringify(row) + '\\n' } }];"
+      },
+      "id": "night08leads-s0",
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "name": "Append lead (to file)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "leads.jsonl"
+        }
+      },
+      "id": "night08leads-s1",
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "name": "Append lead",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/artem/x/n8n-night/out/leads.jsonl",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "night08leads-s2",
+      "position": [
+        660,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Validate lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Validate lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate lead": {
+      "main": [
+        [
+          {
+            "node": "Append lead (to file)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append lead (to file)": {
+      "main": [
+        [
+          {
+            "node": "Append lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

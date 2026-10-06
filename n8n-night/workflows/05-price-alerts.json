@@ -1,0 +1,170 @@
+{
+  "id": "night05prices",
+  "name": "05 Price alerts (replaces TradingView alerts)",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "night05prices-t0",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Run now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "night05prices-t1",
+      "position": [
+        0,
+        180
+      ]
+    },
+    {
+      "name": "Get prices",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "night05prices-s0",
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "name": "Check moves",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const THRESHOLD = 3; // percent in 24h\nconst data = $input.first().json.body ?? {};\nconst at = new Date().toISOString();\nconst rows = Object.entries(data).map(([coin, v]) => {\n  const change = Number((v.usd_24h_change ?? 0).toFixed(2));\n  return { at, coin, usd: v.usd, change24h: change, alert: Math.abs(change) >= THRESHOLD };\n});\nif (!rows.length) throw new Error('No price data: HTTP ' + $input.first().json.statusCode);\nreturn [{ json: { alerts: rows.filter(r => r.alert).length, text: rows.map(r => JSON.stringify(r)).join('\\n') + '\\n' } }];"
+      },
+      "id": "night05prices-s1",
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "name": "Append prices (to file)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "price-alerts.jsonl"
+        }
+      },
+      "id": "night05prices-s2",
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "name": "Append prices",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/artem/x/n8n-night/out/price-alerts.jsonl",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "night05prices-s3",
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Get prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get prices": {
+      "main": [
+        [
+          {
+            "node": "Check moves",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check moves": {
+      "main": [
+        [
+          {
+            "node": "Append prices (to file)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append prices (to file)": {
+      "main": [
+        [
+          {
+            "node": "Append prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

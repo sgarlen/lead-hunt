@@ -1,0 +1,244 @@
+{
+  "id": "night07queue",
+  "name": "07 Post queue (replaces Buffer)",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "night07queue-t0",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Run now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "night07queue-t1",
+      "position": [
+        0,
+        180
+      ]
+    },
+    {
+      "name": "Read queue",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "C:/Users/artem/x/n8n-night/out/queue.json",
+        "options": {}
+      },
+      "id": "night07queue-s0",
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "name": "Pick due posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "let queue;\ntry { queue = JSON.parse((await this.helpers.getBinaryDataBuffer(0, 'data')).toString()); } catch (e) { throw new Error('queue.json is missing or not valid JSON'); }\nconst now = new Date();\nconst due = queue.filter(p => !p.sentAt && new Date(p.at) <= now);\nfor (const p of due) p.sentAt = now.toISOString();\n// Publishing to X needs an API key, so due posts go to outbox.jsonl for now.\nreturn [{ json: { due: due.length, waiting: queue.filter(p => !p.sentAt).length, queueText: JSON.stringify(queue, null, 2), text: due.map(p => JSON.stringify(p)).join('\\n') + (due.length ? '\\n' : '') } }];"
+      },
+      "id": "night07queue-s1",
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "name": "Save queue (to file)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "queueText",
+        "options": {
+          "fileName": "queue.json"
+        }
+      },
+      "id": "night07queue-s2",
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "name": "Save queue",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/artem/x/n8n-night/out/queue.json",
+        "dataPropertyName": "data",
+        "options": {
+          "append": false
+        }
+      },
+      "id": "night07queue-s3",
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "name": "Outbox lines",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { text: $('Pick due posts').first().json.text } }];"
+      },
+      "id": "night07queue-s4",
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "name": "Append outbox (to file)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "outbox.jsonl"
+        }
+      },
+      "id": "night07queue-s5",
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "name": "Append outbox",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/artem/x/n8n-night/out/outbox.jsonl",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "night07queue-s6",
+      "position": [
+        1540,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Read queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Read queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read queue": {
+      "main": [
+        [
+          {
+            "node": "Pick due posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick due posts": {
+      "main": [
+        [
+          {
+            "node": "Save queue (to file)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save queue (to file)": {
+      "main": [
+        [
+          {
+            "node": "Save queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save queue": {
+      "main": [
+        [
+          {
+            "node": "Outbox lines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outbox lines": {
+      "main": [
+        [
+          {
+            "node": "Append outbox (to file)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append outbox (to file)": {
+      "main": [
+        [
+          {
+            "node": "Append outbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

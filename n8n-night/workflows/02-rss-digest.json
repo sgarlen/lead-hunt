@@ -1,0 +1,186 @@
+{
+  "id": "night02rss",
+  "name": "02 RSS digest (replaces Feedly Pro)",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "night02rss-t0",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Run now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "night02rss-t1",
+      "position": [
+        0,
+        180
+      ]
+    },
+    {
+      "name": "Feeds",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const feeds = ['https://hnrss.org/frontpage', 'https://blog.n8n.io/rss/', 'https://huggingface.co/blog/feed.xml', 'https://simonwillison.net/atom/everything/'];\nreturn feeds.map(url => ({ json: { url } }));"
+      },
+      "id": "night02rss-s0",
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "name": "Read feed",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "id": "night02rss-s1",
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "name": "Build digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const since = Date.now() - 48 * 3600 * 1000;\nconst fresh = $input.all().map(i => i.json)\n  .filter(p => p.title && p.link && new Date(p.isoDate || p.pubDate).getTime() > since)\n  .sort((a, b) => new Date(b.isoDate || b.pubDate) - new Date(a.isoDate || a.pubDate))\n  .slice(0, 25);\nconst lines = fresh.map(p => '- [' + p.title.trim() + '](' + p.link + ') - ' + (p.link.match(/^https?:\\/\\/([^\\/]+)/)?.[1] ?? ''));\nconst text = '# Digest ' + new Date().toISOString().slice(0, 10) + '\\n\\n' + lines.join('\\n') + '\\n';\nreturn [{ json: { count: fresh.length, text } }];"
+      },
+      "id": "night02rss-s2",
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "name": "Write digest (to file)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "digest.md"
+        }
+      },
+      "id": "night02rss-s3",
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "name": "Write digest",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/artem/x/n8n-night/out/digest.md",
+        "dataPropertyName": "data",
+        "options": {
+          "append": false
+        }
+      },
+      "id": "night02rss-s4",
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feeds": {
+      "main": [
+        [
+          {
+            "node": "Read feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read feed": {
+      "main": [
+        [
+          {
+            "node": "Build digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build digest": {
+      "main": [
+        [
+          {
+            "node": "Write digest (to file)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write digest (to file)": {
+      "main": [
+        [
+          {
+            "node": "Write digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

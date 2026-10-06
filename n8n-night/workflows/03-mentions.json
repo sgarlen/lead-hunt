@@ -1,0 +1,194 @@
+{
+  "id": "night03mentions",
+  "name": "03 Mention tracker (replaces Brand24)",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "night03mentions-t0",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Run now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "night03mentions-t1",
+      "position": [
+        0,
+        180
+      ]
+    },
+    {
+      "name": "Keywords",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return ['n8n', 'claude code', 'mcp server'].map(q => ({ json: { q } }));"
+      },
+      "id": "night03mentions-s0",
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "name": "Search Hacker News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "=https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=8&query={{ encodeURIComponent($json.q) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "night03mentions-s1",
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "name": "Build mention list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const keywords = $('Keywords').all();\nlet total = 0;\nconst blocks = $input.all().map((item, i) => {\n  const hits = item.json.body?.hits ?? [];\n  total += hits.length;\n  const lines = hits.map(h => '- ' + h.created_at.slice(0, 16).replace('T', ' ') + ' | ' + h.points + ' pts | [' + h.title + '](https://news.ycombinator.com/item?id=' + h.objectID + ')');\n  return '## ' + keywords[i].json.q + '\\n\\n' + lines.join('\\n');\n});\nreturn [{ json: { total, text: '# Mentions ' + new Date().toISOString() + '\\n\\n' + blocks.join('\\n\\n') + '\\n' } }];"
+      },
+      "id": "night03mentions-s2",
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "name": "Write mentions (to file)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "mentions.md"
+        }
+      },
+      "id": "night03mentions-s3",
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "name": "Write mentions",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/artem/x/n8n-night/out/mentions.md",
+        "dataPropertyName": "data",
+        "options": {
+          "append": false
+        }
+      },
+      "id": "night03mentions-s4",
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keywords": {
+      "main": [
+        [
+          {
+            "node": "Search Hacker News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Hacker News": {
+      "main": [
+        [
+          {
+            "node": "Build mention list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build mention list": {
+      "main": [
+        [
+          {
+            "node": "Write mentions (to file)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write mentions (to file)": {
+      "main": [
+        [
+          {
+            "node": "Write mentions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

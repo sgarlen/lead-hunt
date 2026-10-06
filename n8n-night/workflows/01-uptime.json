@@ -1,0 +1,194 @@
+{
+  "id": "night01uptime",
+  "name": "01 Uptime monitor (replaces UptimeRobot)",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "night01uptime-t0",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Run now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "night01uptime-t1",
+      "position": [
+        0,
+        180
+      ]
+    },
+    {
+      "name": "Sites",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const sites = ['https://x.com', 'https://n8n.io', 'https://github.com', 'https://news.ycombinator.com'];\nreturn sites.map(url => ({ json: { url } }));"
+      },
+      "id": "night01uptime-s0",
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "name": "Ping",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "night01uptime-s1",
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "name": "Build log line",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const sites = $('Sites').all();\nconst checkedAt = new Date().toISOString();\nconst rows = $input.all().map((item, i) => {\n  const status = item.json.statusCode ?? 0;\n  return { checkedAt, url: sites[i].json.url, status, up: status >= 200 && status < 400 };\n});\nreturn [{ json: { down: rows.filter(r => !r.up).length, total: rows.length, text: rows.map(r => JSON.stringify(r)).join('\\n') + '\\n' } }];"
+      },
+      "id": "night01uptime-s2",
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "name": "Append to log (to file)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "uptime.jsonl"
+        }
+      },
+      "id": "night01uptime-s3",
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "name": "Append to log",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/artem/x/n8n-night/out/uptime.jsonl",
+        "dataPropertyName": "data",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "night01uptime-s4",
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Sites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Sites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sites": {
+      "main": [
+        [
+          {
+            "node": "Ping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ping": {
+      "main": [
+        [
+          {
+            "node": "Build log line",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build log line": {
+      "main": [
+        [
+          {
+            "node": "Append to log (to file)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to log (to file)": {
+      "main": [
+        [
+          {
+            "node": "Append to log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

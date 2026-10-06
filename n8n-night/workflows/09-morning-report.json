@@ -1,0 +1,163 @@
+{
+  "id": "night09report",
+  "name": "09 Morning report",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "id": "night09report-t0",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Run now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "night09report-t1",
+      "position": [
+        0,
+        180
+      ]
+    },
+    {
+      "name": "Read all outputs",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "C:/Users/artem/x/n8n-night/out/*.{jsonl,md}",
+        "options": {}
+      },
+      "id": "night09report-s0",
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "name": "Build report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');\nconst rows = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const meta = items[i].binary?.data;\n  if (!meta) continue;\n  const lines = (await this.helpers.getBinaryDataBuffer(i, 'data')).toString().split('\\n').filter(l => l.trim());\n  rows.push({ file: meta.fileName, lines: lines.length, last: lines[lines.length - 1] ?? '' });\n}\nrows.sort((a, b) => a.file.localeCompare(b.file));\nconst html = '<!doctype html><meta charset=\"utf-8\"><title>n8n morning report</title>' +\n  '<style>body{background:#0e0f13;color:#e8e8ea;font:15px/1.5 ui-monospace,Consolas,monospace;padding:32px;max-width:900px;margin:auto}h1{font-size:22px}td,th{padding:8px 12px;border-bottom:1px solid #2a2c35;text-align:left;vertical-align:top}th{color:#8b8fa3}.last{color:#8b8fa3;word-break:break-all;font-size:12px}</style>' +\n  '<h1>morning report - ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC</h1>' +\n  '<p>' + rows.length + ' output files, ' + rows.reduce((n, r) => n + r.lines, 0) + ' lines written by the workflows</p>' +\n  '<table><tr><th>file</th><th>lines</th><th>last line</th></tr>' +\n  rows.map(r => '<tr><td>' + esc(r.file) + '</td><td>' + r.lines + '</td><td class=\"last\">' + esc(r.last.slice(0, 220)) + '</td></tr>').join('') + '</table>';\nreturn [{ json: { files: rows.length, text: html } }];"
+      },
+      "id": "night09report-s1",
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "name": "Write report (to file)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "report.html"
+        }
+      },
+      "id": "night09report-s2",
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "name": "Write report",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/artem/x/n8n-night/out/report.html",
+        "dataPropertyName": "data",
+        "options": {
+          "append": false
+        }
+      },
+      "id": "night09report-s3",
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Read all outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Read all outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read all outputs": {
+      "main": [
+        [
+          {
+            "node": "Build report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build report": {
+      "main": [
+        [
+          {
+            "node": "Write report (to file)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write report (to file)": {
+      "main": [
+        [
+          {
+            "node": "Write report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "id": "night06links",
+  "name": "06 Broken link checker (replaces Dr. Link Check)",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 7
+            }
+          ]
+        }
+      },
+      "id": "night06links-t0",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Run now",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {},
+      "id": "night06links-t1",
+      "position": [
+        0,
+        180
+      ]
+    },
+    {
+      "name": "Fetch page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "https://raw.githubusercontent.com/n8n-io/n8n/master/README.md",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "night06links-s0",
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "name": "Extract links",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const body = String($input.first().json.data ?? '');\nconst links = [...new Set(body.match(/https?:\\/\\/[^\\s)\"'<>\\]]+/g) ?? [])].filter(u => !/\\/\\/(localhost|127\\.0\\.0\\.1)/.test(u)).slice(0, 30);\nif (!links.length) throw new Error('No links found: HTTP ' + $input.first().json.statusCode);\nreturn links.map(url => ({ json: { url } }));"
+      },
+      "id": "night06links-s1",
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "name": "Check link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "night06links-s2",
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "name": "Build link report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const links = $('Extract links').all();\nconst rows = $input.all().map((item, i) => ({ url: links[i].json.url, status: item.json.statusCode ?? 0 }));\nconst broken = rows.filter(r => r.status === 0 || r.status >= 400);\nconst text = '# Link check ' + new Date().toISOString() + '\\n\\nchecked: ' + rows.length + ', broken: ' + broken.length + '\\n\\n' + broken.map(r => '- ' + r.status + ' ' + r.url).join('\\n') + '\\n';\nreturn [{ json: { checked: rows.length, broken: broken.length, text } }];"
+      },
+      "id": "night06links-s3",
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "name": "Write link report (to file)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "text",
+        "options": {
+          "fileName": "broken-links.md"
+        }
+      },
+      "id": "night06links-s4",
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "name": "Write link report",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:/Users/artem/x/n8n-night/out/broken-links.md",
+        "dataPropertyName": "data",
+        "options": {
+          "append": false
+        }
+      },
+      "id": "night06links-s5",
+      "position": [
+        1320,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Fetch page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Fetch page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch page": {
+      "main": [
+        [
+          {
+            "node": "Extract links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract links": {
+      "main": [
+        [
+          {
+            "node": "Check link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check link": {
+      "main": [
+        [
+          {
+            "node": "Build link report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build link report": {
+      "main": [
+        [
+          {
+            "node": "Write link report (to file)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write link report (to file)": {
+      "main": [
+        [
+          {
+            "node": "Write link report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
