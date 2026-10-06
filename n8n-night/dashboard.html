@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>n8n night</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #08090d; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { height: 100vh; max-width: 100vw; aspect-ratio: 1080 / 1350; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1350"></canvas>
+<script>
+  // Snapshot of the real run on 2026-10-06: node counts from the n8n database, prices are yearly list prices.
+  const WORKFLOWS = [
+    { name: 'uptime monitor',   nodes: 7,  tool: 'UptimeRobot', price: 120, perDay: 288 },
+    { name: 'rss digest',       nodes: 7,  tool: 'Feedly Pro',  price: 84,  perDay: 1 },
+    { name: 'mention tracker',  nodes: 7,  tool: 'bonus',       price: 0,   perDay: 24 },
+    { name: 'page changes',     nodes: 11, tool: 'Visualping',  price: 168, perDay: 4 },
+    { name: 'price alerts',     nodes: 6,  tool: 'TradingView', price: 179, perDay: 96 },
+    { name: 'link checker',     nodes: 8,  tool: 'bonus',       price: 0,   perDay: 0 },
+    { name: 'post queue',       nodes: 9,  tool: 'Buffer',      price: 72,  perDay: 144 },
+    { name: 'lead webhook',     nodes: 6,  tool: 'Zapier',      price: 360, perDay: 0 },
+    { name: 'morning report',   nodes: 6,  tool: 'bonus',       price: 0,   perDay: 1 },
+  ];
+  const SITES = ['x.com', 'n8n.io', 'github.com', 'news.ycombinator.com'];
+  const TOTAL_NODES = WORKFLOWS.reduce((n, w) => n + w.nodes, 0);
+  const TOTAL_PRICE = WORKFLOWS.reduce((n, w) => n + w.price, 0);
+  const TOTAL_RUNS = WORKFLOWS.reduce((n, w) => n + w.perDay, 0);
+  const BUILD_SECONDS = 19 * 60;
+
+  const T = 20, BUILD_END = 9;
+  const W = 1080, H = 1350, M = 60;
+  const C = { bg: '#08090d', panel: '#10121a', line: '#232634', text: '#eceef4', dim: '#7d8296', coral: '#ff6d5a', mint: '#3ddc97', amber: '#ffc857' };
+  const FONT = '"JetBrains Mono", "Cascadia Mono", Consolas, Menlo, monospace';
+
+  const ctx = document.getElementById('c').getContext('2d');
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+  const span = (t, from, to) => clamp((t - from) / (to - from));
+  const money = n => '$' + Math.round(n).toLocaleString('en-US');
+
+  function text(str, x, y, { size = 22, weight = 500, color = C.text, align = 'left', alpha = 1 } = {}) {
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.font = `${weight} ${size}px ${FONT}`;
+    ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(str, x, y);
+    const w = ctx.measureText(str).width;
+    ctx.restore();
+    return w;
+  }
+  function panel(x, y, w, h) {
+    ctx.fillStyle = C.panel; ctx.strokeStyle = C.line; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 14); ctx.fill(); ctx.stroke();
+  }
+  function glowDot(x, y, r, color, glow = 18) {
+    ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = glow; ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+
+  function background(t) {
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    const g = ctx.createRadialGradient(W * 0.8, 80, 0, W * 0.8, 80, 700);
+    g.addColorStop(0, 'rgba(255,109,90,0.16)'); g.addColorStop(1, 'rgba(255,109,90,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.028)'; ctx.lineWidth = 1;
+    const drift = (t * 12) % 54;
+    for (let x = -54 + drift; x < W; x += 54) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 54) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  }
+
+  function header(t, built) {
+    text('CLAUDE CODE + N8N', M, 78, { size: 20, weight: 700, color: C.coral });
+    const live = built >= 1;
+    const blink = live ? 0.55 + 0.45 * Math.sin(t * 6) : 1;
+    glowDot(W - M - 118, 71, 7, live ? C.mint : C.amber, 16 * blink);
+    text(live ? 'ALL LIVE' : 'BUILDING', W - M, 78, { size: 20, weight: 700, color: live ? C.mint : C.amber, align: 'right' });
+    text('empty n8n', M, 150, { size: 52, weight: 800 });
+    ctx.font = `800 52px ${FONT}`;
+    const off = ctx.measureText('empty n8n ').width;
+    text('->', M + off, 150, { size: 52, weight: 800, color: C.coral });
+    const off2 = ctx.measureText('empty n8n -> ').width;
+    text('9 workflows', M + off2, 150, { size: 52, weight: 800 });
+    text('one rule: "replace the tools people pay for. fix whatever breaks."', M, 196, { size: 21, color: C.dim });
+  }
+
+  function kpis(t, p, nodesBuilt, flowsBuilt, saved) {
+    const secs = Math.round(BUILD_SECONDS * p);
+    const clock = String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0');
+    const cards = [
+      ['build time', clock, C.text],
+      ['workflows', flowsBuilt + '/9', C.text],
+      ['nodes', String(nodesBuilt), C.text],
+      ['replaced / yr', money(saved), C.mint],
+    ];
+    const gap = 16, cw = (W - 2 * M - 3 * gap) / 4;
+    cards.forEach(([label, value, color], i) => {
+      const x = M + i * (cw + gap);
+      panel(x, 232, cw, 130);
+      text(label, x + 20, 270, { size: 17, color: C.dim });
+      text(value, x + 20, 332, { size: 44, weight: 800, color });
+    });
+  }
+
+  function flows(t, nodesBuilt) {
+    const top = 396, rowH = 58, x0 = 392, step = 38;
+    panel(M, top, W - 2 * M, rowH * 9 + 34);
+    let seen = 0;
+    WORKFLOWS.forEach((wf, r) => {
+      const y = top + 46 + r * rowH;
+      const have = clamp(nodesBuilt - seen, 0, wf.nodes);
+      const done = have >= wf.nodes;
+      const appear = have > 0 ? 1 : 0.28;
+      text(String(r + 1).padStart(2, '0'), M + 22, y + 7, { size: 18, color: C.dim, alpha: appear });
+      text(wf.name, M + 62, y + 7, { size: 21, weight: 600, alpha: appear });
+
+      ctx.strokeStyle = done ? 'rgba(255,109,90,0.55)' : C.line; ctx.lineWidth = 2;
+      if (have > 1) { ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + (Math.ceil(have) - 1) * step, y); ctx.stroke(); }
+      for (let i = 0; i < wf.nodes; i++) {
+        const k = clamp(have - i);
+        const x = x0 + i * step;
+        if (k <= 0) { ctx.fillStyle = '#1a1d28'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill(); continue; }
+        const pop = 1 + 0.9 * (1 - ease(k));
+        ctx.fillStyle = C.panel; ctx.strokeStyle = i < 2 ? C.amber : C.coral; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.roundRect(x - 8 * pop, y - 8 * pop, 16 * pop, 16 * pop, 5); ctx.fill(); ctx.stroke();
+      }
+      if (done) {
+        const period = 1.1 + r * 0.23;
+        const u = ((t + r * 0.37) % period) / period;
+        glowDot(x0 + u * (wf.nodes - 1) * step, y, 5, C.mint, 20);
+      }
+
+      const right = W - M - 22;
+      if (wf.price) {
+        const pw = text(money(wf.price), right, y + 7, { size: 21, weight: 700, align: 'right', color: done ? C.dim : C.text, alpha: appear });
+        text(wf.tool, right - pw - 14, y + 7, { size: 18, color: C.dim, align: 'right', alpha: appear });
+        if (done) { ctx.strokeStyle = C.coral; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(right - pw - 4, y); ctx.lineTo(right + 4, y); ctx.stroke(); }
+      } else {
+        text('bonus', right, y + 7, { size: 18, color: C.dim, align: 'right', alpha: appear });
+      }
+      seen += wf.nodes;
+    });
+  }
+
+  function runsChart(t) {
+    const x = M, y = 968, w = 470, h = 322;
+    panel(x, y, w, h);
+    const k = ease(span(t, BUILD_END, BUILD_END + 2.5));
+    text('scheduled runs / day', x + 20, y + 38, { size: 17, color: C.dim });
+    text(String(Math.round(TOTAL_RUNS * k)), x + w - 20, y + 42, { size: 30, weight: 800, color: C.mint, align: 'right' });
+    const rows = WORKFLOWS.filter(wf => wf.perDay > 0).sort((a, b) => b.perDay - a.perDay);
+    const max = Math.sqrt(rows[0].perDay);
+    rows.forEach((wf, i) => {
+      const ry = y + 78 + i * 33;
+      const kk = ease(span(t, BUILD_END + i * 0.18, BUILD_END + 1.6 + i * 0.18));
+      text(wf.name, x + 20, ry + 6, { size: 16, color: C.text });
+      const bx = x + 190, bw = (w - 190 - 82) * Math.sqrt(wf.perDay) / max * kk;
+      const g = ctx.createLinearGradient(bx, 0, bx + Math.max(bw, 1), 0);
+      g.addColorStop(0, 'rgba(255,109,90,0.35)'); g.addColorStop(1, C.coral);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(bx, ry - 9, Math.max(bw, 3), 18, 4); ctx.fill();
+      text(String(Math.round(wf.perDay * kk)), x + w - 20, ry + 6, { size: 16, weight: 700, align: 'right' });
+    });
+  }
+
+  function rightPanel(t) {
+    const x = M + 490, y = 968, w = W - M - x, h = 322;
+    panel(x, y, w, h);
+    text('uptime pings', x + 20, y + 38, { size: 17, color: C.dim });
+    text('4 sites x 288 a day', x + w - 20, y + 38, { size: 15, color: C.dim, align: 'right' });
+    const cols = 22, cell = 13, gap = 4;
+    const filled = Math.floor(span(t, BUILD_END, T - 1) * cols * 1.35);
+    SITES.forEach((site, r) => {
+      const ry = y + 62 + r * 30;
+      text(site.replace('news.ycombinator.com', 'hn'), x + 20, ry + 12, { size: 15, color: C.text });
+      for (let i = 0; i < cols; i++) {
+        const on = i < filled - r;
+        const fresh = i === filled - r - 1;
+        ctx.fillStyle = on ? C.mint : '#1a1d28';
+        ctx.globalAlpha = on ? (fresh ? 1 : 0.72) : 1;
+        if (fresh) { ctx.shadowColor = C.mint; ctx.shadowBlur = 14; }
+        ctx.beginPath(); ctx.roundRect(x + 106 + i * (cell + gap), ry, cell, cell, 3); ctx.fill();
+        ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+      }
+    });
+
+    ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(x + 20, y + 196); ctx.lineTo(x + w - 20, y + 196); ctx.stroke();
+    text('subscriptions replaced', x + 20, y + 230, { size: 17, color: C.dim });
+    const k = ease(span(t, BUILD_END + 2.5, BUILD_END + 4));
+    const pw = text(money(TOTAL_PRICE) + '/yr', x + 20, y + 290, { size: 46, weight: 800, color: k > 0.5 ? C.dim : C.text });
+    if (k > 0) { ctx.strokeStyle = C.coral; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x + 14, y + 274); ctx.lineTo(x + 14 + (pw + 12) * k, y + 274); ctx.stroke(); }
+    const z = ease(span(t, BUILD_END + 3.6, BUILD_END + 4.6));
+    if (z > 0) {
+      ctx.save(); ctx.shadowColor = C.mint; ctx.shadowBlur = 26 * z;
+      text('$0', x + w - 20, y + 292, { size: 46 + 22 * (1 - z), weight: 800, color: C.mint, align: 'right', alpha: z });
+      ctx.restore();
+    }
+  }
+
+  function render(t) {
+    const p = ease(span(t, 0.6, BUILD_END)) * 0.999 + (t >= BUILD_END ? 0.001 : 0);
+    const nodesFloat = TOTAL_NODES * (t >= BUILD_END ? 1 : span(t, 0.6, BUILD_END));
+    const nodesBuilt = Math.floor(nodesFloat);
+    let seen = 0, flowsBuilt = 0, saved = 0;
+    for (const wf of WORKFLOWS) { seen += wf.nodes; if (nodesFloat >= seen) { flowsBuilt++; saved += wf.price; } }
+    background(t);
+    header(t, t >= BUILD_END ? 1 : 0);
+    kpis(t, t >= BUILD_END ? 1 : span(t, 0.6, BUILD_END), nodesBuilt, flowsBuilt, saved);
+    flows(t, nodesFloat);
+    runsChart(t);
+    rightPanel(t);
+    text('github.com/sgarlen/lead-hunt', M, H - 26, { size: 16, color: C.dim });
+    text('real run, 2026-10-06, n8n 2.11.2', W - M, H - 26, { size: 16, color: C.dim, align: 'right' });
+  }
+
+  // ?capture: no live loop; record.mjs steps frames with __renderAt
+  if (location.search.includes('capture')) { window.__renderAt = render; render(0); }
+  else { const t0 = performance.now(); (function frame(now) { render(((now - t0) / 1000) % T); requestAnimationFrame(frame); })(t0); }
+</script>
+</body>
+</html>
